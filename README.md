@@ -35,12 +35,24 @@ make shell
 
 ```bash
 make sim-build
+make sim-up
+make sim-open
 make sim-shell
 ```
 
 `make sim-build` 会在本地缺少基础镜像时先构建基础镜像，再构建 `robot-docker:jazzy-sim`。`make sim-shell` 会启动长期运行的仿真服务并进入 Bash。进入容器后可按需运行 `gz sim`、`rviz2`、`ros2 run turtlesim turtlesim_node`，或用 `ros2 run demo_nodes_cpp talker` 和 `ros2 run demo_nodes_py listener` 验证 ROS 节点。场景代码可通过现有的 `WORKSPACE_DIR` 挂载进 `/workspace`。
 
-`make sim-smoke` 会构建镜像并检查 Gazebo、RViz2、turtlesim、demo nodes，以及 Xvfb、Openbox 和 VNC 服务是否可用。VNC 端口只在 Compose 网络内开放；本镜像还不提供浏览器 noVNC 服务。
+`make sim-up` 会启动仿真服务和独立的 noVNC 浏览器显示服务。浏览器地址默认为 `http://localhost:6080/`；`make sim-open` 会输出当前配置的地址。noVNC 镜像固定为 `bonigarcia/novnc:1.3.0` 的 amd64 digest；Apple Silicon 上由 Docker Desktop 仿真运行。宿主机端口只绑定到本机回环地址，VNC 端口只在 Compose 网络内开放。
+
+可以在容器 shell 中手动启动 GUI，也可以从宿主机使用快捷命令：
+
+```bash
+make sim-turtlesim
+make sim-rviz
+make sim-gazebo
+```
+
+每个快捷命令都会确保仿真和 noVNC 服务运行，再把对应 GUI 程序作为仿真容器中的独立进程启动。关闭浏览器标签页或重启 noVNC 服务不会停止这些 GUI 进程；重新打开本机 noVNC 地址即可连接。`make sim-down` 只停止仿真和 noVNC 服务，不影响基础服务。`make sim-smoke` 会构建镜像并检查 Gazebo、RViz2、turtlesim、demo nodes，以及 Xvfb、Openbox 和 VNC 服务是否可用。
 
 ## 镜像源配置
 

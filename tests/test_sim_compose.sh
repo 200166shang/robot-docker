@@ -21,9 +21,10 @@ config = json.loads(os.environ["CONFIG_JSON"])
 services = config.get("services", {})
 base = services.get("base")
 sim = services.get("sim")
+novnc = services.get("novnc")
 
-if base is None or sim is None:
-    fail("base and sim services must both be present")
+if base is None or sim is None or novnc is None:
+    fail("base, sim, and novnc services must all be present")
 if base.get("image") != "robot-docker:jazzy-base":
     fail("the base image name changed")
 if base.get("build", {}).get("dockerfile") != "Dockerfile":
@@ -50,6 +51,28 @@ if sim.get("ports"):
     fail("the VNC backend must not be published to the host")
 if not any(volume.get("target") == "/workspace" for volume in sim.get("volumes", [])):
     fail("the simulation service must mount the shared workspace")
+
+if novnc.get("image") != "bonigarcia/novnc:1.3.0@sha256:a5be468dc8967a55ffe870e809fa36dbbfc19b67d8156c1e7cb2d26aaa4f32c2":
+    fail("the browser display service must use the digest-pinned noVNC image")
+if novnc.get("platform") != "linux/amd64":
+    fail("the noVNC image must use its published platform")
+dependency = novnc.get("depends_on", {}).get("sim", {})
+if dependency.get("condition") != "service_healthy":
+    fail("the browser display service must wait for the simulation VNC backend")
+if novnc.get("environment", {}).get("VNC_SERVER") != "sim:5900":
+    fail("the browser display service must target the internal simulation VNC server")
+if novnc.get("environment", {}).get("AUTOCONNECT") not in (True, "true"):
+    fail("the browser display service must connect automatically")
+ports = novnc.get("ports", [])
+if len(ports) != 1:
+    fail("the browser display service must publish only the noVNC web port")
+port = ports[0]
+if port.get("target") != 6080 or port.get("published") != "6080":
+    fail("the noVNC web port must default to host port 6080")
+if port.get("host_ip") != "127.0.0.1":
+    fail("the noVNC web port must only bind to the local host")
+if not sim.get("healthcheck", {}).get("test"):
+    fail("the simulation service must report when its VNC backend is ready")
 
 print("PASS: simulation Compose contract")
 PY

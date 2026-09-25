@@ -49,3 +49,27 @@ services:
       - type: bind
         source: ${WORKSPACE_DIR:-.}
         target: /workspace
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          source /usr/local/lib/robot-docker-sim-display-utils.sh &&
+          robot_docker_sim_vnc_port_is_listening "${ROBOT_DOCKER_VNC_PORT:-5900}"
+      interval: 2s
+      timeout: 1s
+      retries: 30
+      start_period: 2s
+
+  novnc:
+    image: bonigarcia/novnc:1.3.0@sha256:a5be468dc8967a55ffe870e809fa36dbbfc19b67d8156c1e7cb2d26aaa4f32c2
+    platform: linux/amd64
+    depends_on:
+      sim:
+        condition: service_healthy
+    environment:
+      AUTOCONNECT: "true"
+      VNC_SERVER: sim:${ROBOT_DOCKER_VNC_PORT:-5900}
+    ports:
+      - "127.0.0.1:${ROBOT_DOCKER_NOVNC_PORT:-6080}:6080"

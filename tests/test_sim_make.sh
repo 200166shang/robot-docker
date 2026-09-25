@@ -28,7 +28,7 @@ set -euo pipefail
 shift
 if [[ " $* " == *" config --format json "* ]]; then
   cat <<'JSON'
-{"services":{"base":{"image":"robot-docker:jazzy-base"},"sim":{"image":"robot-docker:jazzy-sim"}}}
+{"services":{"base":{"image":"robot-docker:jazzy-base"},"sim":{"image":"robot-docker:jazzy-sim"},"novnc":{"ports":[{"target":6080,"published":"6081"}]}}}
 JSON
 elif [[ " $* " == *" build --pull base "* ]]; then
   printf '%s\n' 'build --pull base' >> "${COMPOSE_LOG}"
@@ -37,12 +37,26 @@ elif [[ " $* " == *" build sim "* ]]; then
   [[ -f "${BASE_IMAGE_MARKER}" ]] || exit 3
   printf '%s\n' 'build sim' >> "${COMPOSE_LOG}"
   touch "${SIM_IMAGE_MARKER}"
+elif [[ " $* " == *" up -d sim novnc "* ]]; then
+  [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 4
+  printf '%s\n' 'up -d sim novnc' >> "${COMPOSE_LOG}"
 elif [[ " $* " == *" up -d sim "* ]]; then
   [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 4
   printf '%s\n' 'up -d sim' >> "${COMPOSE_LOG}"
 elif [[ " $* " == *" exec sim /usr/local/bin/robot-docker-entrypoint bash "* ]]; then
   [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 5
   printf '%s\n' 'exec sim ROS entrypoint bash' >> "${COMPOSE_LOG}"
+elif [[ " $* " == *" exec -d sim /usr/local/bin/robot-docker-entrypoint ros2 run turtlesim turtlesim_node "* ]]; then
+  [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 5
+  printf '%s\n' 'exec -d sim turtlesim' >> "${COMPOSE_LOG}"
+elif [[ " $* " == *" exec -d sim /usr/local/bin/robot-docker-entrypoint rviz2 "* ]]; then
+  [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 5
+  printf '%s\n' 'exec -d sim rviz2' >> "${COMPOSE_LOG}"
+elif [[ " $* " == *" exec -d sim /usr/local/bin/robot-docker-entrypoint gz sim "* ]]; then
+  [[ -f "${SIM_IMAGE_MARKER}" ]] || exit 5
+  printf '%s\n' 'exec -d sim gz sim' >> "${COMPOSE_LOG}"
+elif [[ " $* " == *" stop sim novnc "* ]]; then
+  printf '%s\n' 'stop sim novnc' >> "${COMPOSE_LOG}"
 else
   printf 'unexpected compose invocation: %s\n' "$*" >&2
   exit 2
@@ -77,6 +91,19 @@ actual_log="$(cat "${TEST_ROOT}/compose.log")"
 
 echo 'PASS: sim-build builds a missing base image before the simulation image'
 
+browser_url="$(
+  COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+  DOCKER="${TEST_ROOT}/docker --test-command-flag" \
+  PYTHON="${TEST_ROOT}/python --test-command-flag" \
+    make --no-print-directory sim-open
+)"
+[[ "${browser_url}" == 'Open the simulation desktop at http://localhost:6081/' ]] || {
+  echo "FAIL: sim-open did not use the resolved noVNC host port" >&2
+  exit 1
+}
+
+echo 'PASS: sim-open prints the configured noVNC host port'
+
 rm -f "${TEST_ROOT}/base-built" "${TEST_ROOT}/sim-built"
 : > "${TEST_ROOT}/compose.log"
 
@@ -96,3 +123,74 @@ actual_log="$(cat "${TEST_ROOT}/compose.log")"
 }
 
 echo 'PASS: sim-shell builds missing images, starts the service, and enters through the ROS entrypoint'
+
+rm -f "${TEST_ROOT}/base-built" "${TEST_ROOT}/sim-built"
+: > "${TEST_ROOT}/compose.log"
+
+COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+DOCKER="${TEST_ROOT}/docker --test-command-flag" \
+PYTHON="${TEST_ROOT}/python --test-command-flag" \
+BASE_IMAGE_MARKER="${TEST_ROOT}/base-built" \
+SIM_IMAGE_MARKER="${TEST_ROOT}/sim-built" \
+COMPOSE_LOG="${TEST_ROOT}/compose.log" \
+  make --no-print-directory sim-up
+
+expected_log=$'build --pull base\nbuild sim\nup -d sim novnc'
+actual_log="$(cat "${TEST_ROOT}/compose.log")"
+[[ "${actual_log}" == "${expected_log}" ]] || {
+  echo "FAIL: sim-up did not build the image and start both runtime services" >&2
+  exit 1
+}
+
+echo 'PASS: sim-up builds missing images and starts simulation plus browser display services'
+
+rm -f "${TEST_ROOT}/base-built" "${TEST_ROOT}/sim-built"
+: > "${TEST_ROOT}/compose.log"
+
+COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+DOCKER="${TEST_ROOT}/docker --test-command-flag" \
+PYTHON="${TEST_ROOT}/python --test-command-flag" \
+BASE_IMAGE_MARKER="${TEST_ROOT}/base-built" \
+SIM_IMAGE_MARKER="${TEST_ROOT}/sim-built" \
+COMPOSE_LOG="${TEST_ROOT}/compose.log" \
+  make --no-print-directory sim-turtlesim
+
+expected_log=$'build --pull base\nbuild sim\nup -d sim novnc\nexec -d sim turtlesim'
+actual_log="$(cat "${TEST_ROOT}/compose.log")"
+[[ "${actual_log}" == "${expected_log}" ]] || {
+  echo "FAIL: sim-turtlesim did not start the runtime and detached turtlesim process" >&2
+  exit 1
+}
+
+echo 'PASS: sim-turtlesim starts the browser runtime and a persistent detached GUI process'
+
+: > "${TEST_ROOT}/compose.log"
+for target in sim-rviz sim-gazebo; do
+  COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+  DOCKER="${TEST_ROOT}/docker --test-command-flag" \
+  PYTHON="${TEST_ROOT}/python --test-command-flag" \
+  BASE_IMAGE_MARKER="${TEST_ROOT}/base-built" \
+  SIM_IMAGE_MARKER="${TEST_ROOT}/sim-built" \
+  COMPOSE_LOG="${TEST_ROOT}/compose.log" \
+    make --no-print-directory "${target}"
+done
+
+expected_log=$'up -d sim novnc\nexec -d sim rviz2\nup -d sim novnc\nexec -d sim gz sim'
+actual_log="$(cat "${TEST_ROOT}/compose.log")"
+[[ "${actual_log}" == "${expected_log}" ]] || {
+  echo "FAIL: sim-rviz and sim-gazebo did not start the expected GUI processes" >&2
+  exit 1
+}
+
+echo 'PASS: sim-rviz and sim-gazebo start their detached GUI processes'
+
+: > "${TEST_ROOT}/compose.log"
+COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+COMPOSE_LOG="${TEST_ROOT}/compose.log" \
+  make --no-print-directory sim-down
+[[ "$(cat "${TEST_ROOT}/compose.log")" == 'stop sim novnc' ]] || {
+  echo "FAIL: sim-down did not stop both simulation services" >&2
+  exit 1
+}
+
+echo 'PASS: sim-down stops simulation and browser display services'

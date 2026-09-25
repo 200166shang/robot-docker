@@ -10,7 +10,7 @@ ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
 COMPOSE_CMD = $(COMPOSE) --project-name $(PROJECT_NAME) --env-file $(ENV_FILE)
 SIM_TARGET_ARGS = "$(COMPOSE)" "$(DOCKER)" "$(PYTHON)" "$(PROJECT_NAME)" "$(ENV_FILE)"
 
-.PHONY: help build build-official up shell smoke sim-build sim-shell sim-smoke test config down
+.PHONY: help build build-official up shell smoke sim-build sim-up sim-open sim-shell sim-turtlesim sim-rviz sim-gazebo sim-down sim-smoke test config down
 
 help:
 	@printf '%s\n' \
@@ -21,7 +21,13 @@ help:
 		'  make shell           Open an interactive shell in a disposable container' \
 		'  make smoke           Build the image and run the container smoke test' \
 		'  make sim-build       Build the Jazzy simulation image (and base image if missing)' \
+		'  make sim-up          Start the simulation and browser display services' \
+		'  make sim-open        Print the local browser display URL' \
 		'  make sim-shell       Enter the long-running Jazzy simulation service' \
+		'  make sim-turtlesim   Start turtlesim in the simulation display' \
+		'  make sim-rviz        Start RViz2 in the simulation display' \
+		'  make sim-gazebo      Start Gazebo in the simulation display' \
+		'  make sim-down        Stop the simulation and browser display services' \
 		'  make sim-smoke       Build the simulation image and check commands and display runtime' \
 		'  make test            Run local source and Compose configuration tests' \
 		'  make config          Show the resolved Compose configuration' \
@@ -45,8 +51,26 @@ smoke: build
 sim-build:
 	@bash docker/sim-targets.sh build $(SIM_TARGET_ARGS)
 
+sim-up:
+	@bash docker/sim-targets.sh up $(SIM_TARGET_ARGS)
+
+sim-open:
+	@bash docker/sim-targets.sh open $(SIM_TARGET_ARGS)
+
 sim-shell:
 	@bash docker/sim-targets.sh shell $(SIM_TARGET_ARGS)
+
+sim-turtlesim:
+	@bash docker/sim-targets.sh turtlesim $(SIM_TARGET_ARGS)
+
+sim-rviz:
+	@bash docker/sim-targets.sh rviz $(SIM_TARGET_ARGS)
+
+sim-gazebo:
+	@bash docker/sim-targets.sh gazebo $(SIM_TARGET_ARGS)
+
+sim-down:
+	$(COMPOSE_CMD) stop sim novnc
 
 sim-smoke: sim-build
 	$(COMPOSE_CMD) run --rm --no-deps sim /usr/local/bin/robot-docker-sim-smoke-test
