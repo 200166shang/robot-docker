@@ -1,0 +1,26 @@
+services:
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-ros:jazzy-ros-base}
+        ROS_DISTRO: ${ROS_DISTRO:-jazzy}
+        SOURCE_MODE: ${SOURCE_MODE:-official}
+        UBUNTU_MIRROR_AMD64: ${UBUNTU_MIRROR_AMD64:-}
+        UBUNTU_MIRROR_ARM64: ${UBUNTU_MIRROR_ARM64:-}
+        ROS_APT_MIRROR: ${ROS_APT_MIRROR:-}
+        ROSDISTRO_INDEX_URL: ${ROSDISTRO_INDEX_URL:-}
+        ROSDEP_SOURCE_MIRROR: ${ROSDEP_SOURCE_MIRROR:-}
+    image: ${IMAGE_NAME:-robot-docker:jazzy-base}
+    init: true
+    stdin_open: true
+    tty: true
+    command: ["sleep", "infinity"]
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+    working_dir: /workspace
+    volumes:
+      - type: bind
+        source: ${WORKSPACE_DIR:-.}
+        target: /workspace
