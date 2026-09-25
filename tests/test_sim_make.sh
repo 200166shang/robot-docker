@@ -28,7 +28,7 @@ set -euo pipefail
 shift
 if [[ " $* " == *" config --format json "* ]]; then
   cat <<'JSON'
-{"services":{"base":{"image":"robot-docker:jazzy-base"},"sim":{"image":"robot-docker:jazzy-sim"}}}
+{"services":{"base":{"image":"robot-docker:jazzy-base"},"sim":{"image":"robot-docker:jazzy-sim"},"novnc":{"ports":[{"target":6080,"published":"6081"}]}}}
 JSON
 elif [[ " $* " == *" build --pull base "* ]]; then
   printf '%s\n' 'build --pull base' >> "${COMPOSE_LOG}"
@@ -90,6 +90,19 @@ actual_log="$(cat "${TEST_ROOT}/compose.log")"
 }
 
 echo 'PASS: sim-build builds a missing base image before the simulation image'
+
+browser_url="$(
+  COMPOSE="${TEST_ROOT}/compose --test-command-flag" \
+  DOCKER="${TEST_ROOT}/docker --test-command-flag" \
+  PYTHON="${TEST_ROOT}/python --test-command-flag" \
+    make --no-print-directory sim-open
+)"
+[[ "${browser_url}" == 'Open the simulation desktop at http://localhost:6081/' ]] || {
+  echo "FAIL: sim-open did not use the resolved noVNC host port" >&2
+  exit 1
+}
+
+echo 'PASS: sim-open prints the configured noVNC host port'
 
 rm -f "${TEST_ROOT}/base-built" "${TEST_ROOT}/sim-built"
 : > "${TEST_ROOT}/compose.log"

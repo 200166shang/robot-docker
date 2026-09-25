@@ -34,14 +34,18 @@ compose() {
     "$@"
 }
 
+query_compose_config() {
+  compose config --format json \
+    | "${python_command[@]}" -c "$@"
+}
+
 image_for_service() {
   local service_name="$1"
 
   # 读取 Compose 展开的镜像名，继续尊重 .env 中对基础镜像和仿真镜像的覆写。
-  compose config --format json \
-    | "${python_command[@]}" -c \
-        'import json, sys; print(json.load(sys.stdin)["services"][sys.argv[1]]["image"])' \
-        "${service_name}"
+  query_compose_config \
+    'import json, sys; print(json.load(sys.stdin)["services"][sys.argv[1]]["image"])' \
+    "${service_name}"
 }
 
 build_simulation_image() {
@@ -80,9 +84,8 @@ start_simulation_runtime() {
 
 open_browser_display() {
   local published_port
-  published_port="$(compose config --format json \
-    | "${python_command[@]}" -c \
-        'import json, sys; ports=json.load(sys.stdin)["services"]["novnc"]["ports"]; print(next((port.get("published", "6080") for port in ports if str(port.get("target")) == "6080"), "6080"))')"
+  published_port="$(query_compose_config \
+    'import json, sys; ports=json.load(sys.stdin)["services"]["novnc"]["ports"]; print(next((port.get("published", "6080") for port in ports if str(port.get("target")) == "6080"), "6080"))')"
   printf 'Open the simulation desktop at http://localhost:%s/\n' "${published_port}"
 }
 
