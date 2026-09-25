@@ -24,3 +24,28 @@ services:
       - type: bind
         source: ${WORKSPACE_DIR:-.}
         target: /workspace
+
+  sim:
+    build:
+      context: .
+      dockerfile: Dockerfile.sim
+      args:
+        BASE_IMAGE: ${IMAGE_NAME:-robot-docker:jazzy-base}
+    image: ${SIM_IMAGE_NAME:-robot-docker:jazzy-sim}
+    init: true
+    stdin_open: true
+    tty: true
+    command: ["sleep", "infinity"]
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      DISPLAY: ":0"
+      ROBOT_DOCKER_VNC_PORT: ${ROBOT_DOCKER_VNC_PORT:-5900}
+      ROBOT_DOCKER_DISPLAY_GEOMETRY: ${ROBOT_DOCKER_DISPLAY_GEOMETRY:-1280x800x24}
+    working_dir: /workspace
+    shm_size: 1gb
+    expose:
+      - "${ROBOT_DOCKER_VNC_PORT:-5900}"
+    volumes:
+      - type: bind
+        source: ${WORKSPACE_DIR:-.}
+        target: /workspace
