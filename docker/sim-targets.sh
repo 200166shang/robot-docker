@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: sim-targets.sh build|shell COMPOSE_COMMAND DOCKER_COMMAND PYTHON_COMMAND PROJECT_NAME ENV_FILE" >&2
+  echo "Usage: sim-targets.sh build|up|open|shell|turtlesim|rviz|gazebo COMPOSE_COMMAND DOCKER_COMMAND PYTHON_COMMAND PROJECT_NAME ENV_FILE" >&2
   exit 2
 }
 
@@ -56,25 +56,75 @@ build_simulation_image() {
 }
 
 open_simulation_shell() {
-  local sim_image
-  sim_image="$(image_for_service sim)"
-
-  # 仿真镜像缺失时复用同一构建流程，再启动长期服务并进入容器。
-  if ! "${docker_command[@]}" image inspect "${sim_image}" >/dev/null 2>&1; then
-    build_simulation_image
-  fi
+  ensure_simulation_image
   compose up -d sim
 
   # docker compose exec 不会重新执行容器 ENTRYPOINT；显式调用 ROS entrypoint 为新 shell 加载 Jazzy。
   compose exec sim /usr/local/bin/robot-docker-entrypoint bash
 }
 
+ensure_simulation_image() {
+  local sim_image
+  sim_image="$(image_for_service sim)"
+
+  # 仿真镜像缺失时先补齐基础层，再构建仿真层。
+  if ! "${docker_command[@]}" image inspect "${sim_image}" >/dev/null 2>&1; then
+    build_simulation_image
+  fi
+}
+
+start_simulation_runtime() {
+  ensure_simulation_image
+  compose up -d sim novnc
+}
+
+open_browser_display() {
+  local published_port
+  published_port="$(compose config --format json \
+    | "${python_command[@]}" -c \
+        'import json, sys; ports=json.load(sys.stdin)["services"]["novnc"]["ports"]; print(next((port.get("published", "6080") for port in ports if str(port.get("target")) == "6080"), "6080"))')"
+  printf 'Open the simulation desktop at http://localhost:%s/\n' "${published_port}"
+}
+
+launch_gui() {
+  local application="$1"
+  local -a command
+
+  start_simulation_runtime
+  case "${application}" in
+    turtlesim)
+      command=(ros2 run turtlesim turtlesim_node)
+      ;;
+    rviz)
+      command=(rviz2)
+      ;;
+    gazebo)
+      command=(gz sim)
+      ;;
+    *)
+      usage
+      ;;
+  esac
+
+  # GUI 程序作为仿真容器中的独立进程运行；浏览器服务退出不会影响它。
+  compose exec -d sim /usr/local/bin/robot-docker-entrypoint "${command[@]}"
+}
+
 case "${action}" in
   build)
     build_simulation_image
     ;;
+  up)
+    start_simulation_runtime
+    ;;
+  open)
+    open_browser_display
+    ;;
   shell)
     open_simulation_shell
+    ;;
+  turtlesim|rviz|gazebo)
+    launch_gui "${action}"
     ;;
   *)
     usage
