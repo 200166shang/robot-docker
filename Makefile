@@ -3,11 +3,14 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 COMPOSE ?= docker compose
+DOCKER ?= docker
+PYTHON ?= python3
 PROJECT_NAME ?= robot-docker
 ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
 COMPOSE_CMD = $(COMPOSE) --project-name $(PROJECT_NAME) --env-file $(ENV_FILE)
+SIM_TARGET_ARGS = "$(COMPOSE)" "$(DOCKER)" "$(PYTHON)" "$(PROJECT_NAME)" "$(ENV_FILE)"
 
-.PHONY: help build build-official up shell smoke test config down
+.PHONY: help build build-official up shell smoke sim-build sim-shell sim-smoke test config down
 
 help:
 	@printf '%s\n' \
@@ -17,6 +20,9 @@ help:
 		'  make up              Start the base service in the background' \
 		'  make shell           Open an interactive shell in a disposable container' \
 		'  make smoke           Build the image and run the container smoke test' \
+		'  make sim-build       Build the Jazzy simulation image (and base image if missing)' \
+		'  make sim-shell       Enter the long-running Jazzy simulation service' \
+		'  make sim-smoke       Build the simulation image and check commands and display runtime' \
 		'  make test            Run local source and Compose configuration tests' \
 		'  make config          Show the resolved Compose configuration' \
 		'  make down            Stop the Compose services'
@@ -35,6 +41,15 @@ shell:
 
 smoke: build
 	$(COMPOSE_CMD) run --rm --no-deps base /usr/local/bin/robot-docker-smoke-test
+
+sim-build:
+	@bash docker/sim-targets.sh build $(SIM_TARGET_ARGS)
+
+sim-shell:
+	@bash docker/sim-targets.sh shell $(SIM_TARGET_ARGS)
+
+sim-smoke: sim-build
+	$(COMPOSE_CMD) run --rm --no-deps sim /usr/local/bin/robot-docker-sim-smoke-test
 
 test:
 	bash tests/run.sh

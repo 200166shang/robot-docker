@@ -2,7 +2,7 @@
 
 用于维护可复用 ROS 2 Docker 环境的仓库。这里维护的是环境，不维护 ROS 学习代码、机器人应用或具体工作区。
 
-第一阶段提供一个 ROS 2 Jazzy 基础开发镜像，后续再基于它增加 Gazebo、RViz、TurtleBot3 和 Nav2 等独立环境。
+仓库提供 ROS 2 Jazzy 基础开发镜像，以及基于它单独构建的通用仿真镜像。TurtleBot3 和 Nav2 等机器人专用环境仍由后续独立镜像提供。
 
 ## 快速开始
 
@@ -28,6 +28,19 @@ make shell
 | `make config` | 查看 Compose 展开的配置 |
 | `make down` | 停止 Compose 服务 |
 | `make test` | 运行本地源配置和 Compose 静态检查 |
+
+## 仿真镜像
+
+仿真镜像以 `robot-docker:jazzy-base` 为基础，使用 ROS Jazzy 二进制包安装 Gazebo Harmonic（`ros_gz`）、RViz2、turtlesim 和 C++/Python demo nodes。容器还包含 Xvfb、x11vnc、Openbox 和软件 OpenGL，用于运行 Linux GUI 程序。它不包含 TurtleBot3、Nav2、SLAM 或场景工作区源码。
+
+```bash
+make sim-build
+make sim-shell
+```
+
+`make sim-build` 会在本地缺少基础镜像时先构建基础镜像，再构建 `robot-docker:jazzy-sim`。`make sim-shell` 会启动长期运行的仿真服务并进入 Bash。进入容器后可按需运行 `gz sim`、`rviz2`、`ros2 run turtlesim turtlesim_node`，或用 `ros2 run demo_nodes_cpp talker` 和 `ros2 run demo_nodes_py listener` 验证 ROS 节点。场景代码可通过现有的 `WORKSPACE_DIR` 挂载进 `/workspace`。
+
+`make sim-smoke` 会构建镜像并检查 Gazebo、RViz2、turtlesim、demo nodes，以及 Xvfb、Openbox 和 VNC 服务是否可用。VNC 端口只在 Compose 网络内开放；本镜像还不提供浏览器 noVNC 服务。
 
 ## 镜像源配置
 
@@ -83,7 +96,7 @@ make build-official
 - CycloneDDS、noVNC、X11、GPU 或宿主机设备配置；
 - 任何 ROS 学习代码或应用工作区。
 
-这些内容应在后续独立的派生镜像或下游项目中维护，避免污染通用基础环境。
+仿真和机器人专用内容应在独立的派生镜像或下游项目中维护，避免污染通用基础环境。
 
 ## 维护方式
 
@@ -93,9 +106,10 @@ make build-official
 make test
 make build
 make smoke
+make sim-smoke
 ```
 
-基础服务通过 Docker Compose 管理，Make 是推荐的日常入口。后续增加仿真或机器人环境时，应在基础镜像之上增加独立服务或派生镜像，不把仿真依赖反向加入基础层。
+服务通过 Docker Compose 管理，Make 是推荐的日常入口。增加仿真或机器人环境时，应在基础镜像之上增加独立服务或派生镜像，不把仿真依赖反向加入通用基础环境。
 
 参考：
 

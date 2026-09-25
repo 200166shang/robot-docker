@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+# 这些变量保存命令行配置；测试时可用 --root 把文件改写限制在临时目录内。
 ROOT="${ROBOT_DOCKER_SOURCE_ROOT:-/}"
 MODE="official"
 UBUNTU_MIRROR=""
@@ -23,6 +24,7 @@ Options:
 EOF
 }
 
+# 先完整解析参数并校验模式，再统一修改 APT 源和运行时 rosdep 配置。
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --root)
@@ -80,6 +82,7 @@ if [[ "$ROOT" != "/" ]]; then
   ROOT="${ROOT%/}"
 fi
 
+# 把容器绝对路径映射到可替换根目录，便于生产环境和无副作用测试共用逻辑。
 path_in_root() {
   local path="$1"
 
@@ -107,6 +110,7 @@ replace_in_file() {
   fi
 }
 
+# 同时发现传统 .list 和 deb822 .sources 文件，兼容 Ubuntu 与 ROS 仓库的不同格式。
 source_files() {
   local apt_dir
   apt_dir="$(path_in_root /etc/apt)"
@@ -126,6 +130,7 @@ source_files() {
   fi
 }
 
+# 镜像模式仅替换官方 Ubuntu / ROS 仓库 URL；不匹配时失败，避免构建悄悄沿用错误源。
 rewrite_ubuntu_sources() {
   local mirror="${1%/}"
   local matched=0
@@ -204,6 +209,7 @@ disable_ros_source_packages() {
   fi
 }
 
+# rosdep 的索引和源列表配置独立于 APT；把运行时需要的覆写写入 entrypoint 会读取的文件。
 write_runtime_source_env() {
   local env_file
   local rosdep_mirror_file
@@ -222,6 +228,7 @@ write_runtime_source_env() {
   fi
 }
 
+# 主流程按模式选择镜像替换或恢复官方 ROS HTTPS 地址，最后保存运行时配置。
 if [[ "$MODE" == "mirror" ]]; then
   if [[ -n "$UBUNTU_MIRROR" ]]; then
     rewrite_ubuntu_sources "$UBUNTU_MIRROR"

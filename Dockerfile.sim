@@ -1,0 +1,41 @@
+ARG BASE_IMAGE=robot-docker:jazzy-base
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV DISPLAY=:0 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    GALLIUM_DRIVER=llvmpipe \
+    QT_X11_NO_MITSHM=1 \
+    ROBOT_DOCKER_DISPLAY_GEOMETRY=1280x800x24 \
+    ROBOT_DOCKER_VNC_PORT=5900
+
+RUN apt-get -o APT::Update::Error-Mode=any update \
+    && apt-get install -y --no-install-recommends \
+      dbus-x11 \
+      fonts-dejavu-core \
+      libgl1-mesa-dri \
+      openbox \
+      ros-jazzy-demo-nodes-cpp \
+      ros-jazzy-demo-nodes-py \
+      ros-jazzy-ros-gz \
+      ros-jazzy-rviz2 \
+      ros-jazzy-turtlesim \
+      x11-utils \
+      x11vnc \
+      xvfb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/sim-entrypoint.sh /usr/local/bin/robot-docker-sim-entrypoint
+COPY docker/sim-smoke-test.sh /usr/local/bin/robot-docker-sim-smoke-test
+COPY docker/sim-display-utils.sh /usr/local/lib/robot-docker-sim-display-utils.sh
+
+RUN chmod +x \
+      /usr/local/bin/robot-docker-sim-entrypoint \
+      /usr/local/bin/robot-docker-sim-smoke-test
+
+EXPOSE 5900
+
+ENTRYPOINT ["/usr/local/bin/robot-docker-sim-entrypoint"]
+CMD ["sleep", "infinity"]
