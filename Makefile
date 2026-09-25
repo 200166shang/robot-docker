@@ -8,6 +8,7 @@ PYTHON ?= python3
 PROJECT_NAME ?= robot-docker
 ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
 COMPOSE_CMD = $(COMPOSE) --project-name $(PROJECT_NAME) --env-file $(ENV_FILE)
+SIM_TARGET_ARGS = "$(COMPOSE)" "$(DOCKER)" "$(PYTHON)" "$(PROJECT_NAME)" "$(ENV_FILE)"
 
 .PHONY: help build build-official up shell smoke sim-build sim-shell sim-smoke test config down
 
@@ -42,21 +43,10 @@ smoke: build
 	$(COMPOSE_CMD) run --rm --no-deps base /usr/local/bin/robot-docker-smoke-test
 
 sim-build:
-	@set -euo pipefail; \
-	base_image="$$($(COMPOSE_CMD) config --format json | $(PYTHON) -c 'import json, sys; print(json.load(sys.stdin)["services"]["base"]["image"])')"; \
-	if ! $(DOCKER) image inspect "$$base_image" >/dev/null 2>&1; then \
-		$(COMPOSE_CMD) build --pull base; \
-	fi; \
-	$(COMPOSE_CMD) build sim
+	@bash docker/sim-targets.sh build $(SIM_TARGET_ARGS)
 
 sim-shell:
-	@set -euo pipefail; \
-	sim_image="$$($(COMPOSE_CMD) config --format json | $(PYTHON) -c 'import json, sys; print(json.load(sys.stdin)["services"]["sim"]["image"])')"; \
-	if ! $(DOCKER) image inspect "$$sim_image" >/dev/null 2>&1; then \
-		$(MAKE) sim-build; \
-	fi; \
-	$(COMPOSE_CMD) up -d sim; \
-	$(COMPOSE_CMD) exec sim /usr/local/bin/robot-docker-entrypoint bash
+	@bash docker/sim-targets.sh shell $(SIM_TARGET_ARGS)
 
 sim-smoke: sim-build
 	$(COMPOSE_CMD) run --rm --no-deps sim /usr/local/bin/robot-docker-sim-smoke-test

@@ -6,6 +6,7 @@ display="${DISPLAY:-:0}"
 geometry="${ROBOT_DOCKER_DISPLAY_GEOMETRY:-1280x800x24}"
 vnc_port="${ROBOT_DOCKER_VNC_PORT:-5900}"
 
+# 为容器内 GUI 固定虚拟显示，并载入 VNC 端口探测函数。
 export DISPLAY="${display}"
 source /usr/local/lib/robot-docker-sim-display-utils.sh
 
@@ -20,6 +21,7 @@ fail() {
 }
 
 cleanup() {
+  # 容器退出或收到停止信号时，按依赖顺序清理 ROS 命令、VNC、窗口管理器和 Xvfb。
   trap - EXIT INT TERM
   local pid
 
@@ -40,9 +42,11 @@ stop_on_signal() {
   exit 143
 }
 
+# 将停止信号转换为正常退出，让 EXIT trap 统一回收后台进程。
 trap cleanup EXIT
 trap stop_on_signal INT TERM
 
+# 先启动 Xvfb 并等待显示 socket 可用，避免后续 GUI 服务抢跑。
 Xvfb "${display}" \
   -screen 0 "${geometry}" \
   -nolisten tcp \
@@ -64,6 +68,7 @@ for _ in {1..50}; do
 done
 [[ "${display_ready}" == true ]] || fail "timed out waiting for display ${display}"
 
+# 显示就绪后启动轻量窗口管理器和 VNC 服务，再等待 VNC 端口开始监听。
 openbox --sm-disable &
 window_manager_pid=$!
 
@@ -90,6 +95,7 @@ for _ in {1..50}; do
 done
 [[ "${vnc_ready}" == true ]] || fail "timed out waiting for VNC port ${vnc_port}"
 
+# 显示后端就绪后交给基础镜像 entrypoint 加载 ROS，再运行容器主命令。
 /usr/local/bin/robot-docker-entrypoint "$@" &
 command_pid=$!
 status=0

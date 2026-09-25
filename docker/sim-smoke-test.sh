@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+# 载入与 entrypoint 共用的 VNC 端口检查函数。
 source /usr/local/lib/robot-docker-sim-display-utils.sh
 
 fail() {
@@ -9,6 +10,7 @@ fail() {
   exit 1
 }
 
+# 与交互 shell 一样检查 Jazzy 环境，并确认仿真应用和显示后端命令已安装。
 [[ "${ROS_DISTRO:-}" == "jazzy" ]] || fail "ROS_DISTRO is not jazzy"
 [[ -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]] || fail "ROS setup file is missing"
 
@@ -32,17 +34,20 @@ check_ros_executable() {
     || fail "missing ROS executable: ${package_name} ${executable_name}"
 }
 
+# ROS 可执行文件通过 `ros2 run` 注册，不一定直接位于 PATH，因此从 ROS 包索引核对。
 check_ros_executable turtlesim turtlesim_node
 check_ros_executable demo_nodes_cpp talker
 check_ros_executable demo_nodes_cpp listener
 check_ros_executable demo_nodes_py talker
 check_ros_executable demo_nodes_py listener
 
+# 清空当前进程继承的 ROS 标记后再经 entrypoint 开新 shell，验证 shell 自己能加载 Jazzy。
 env -u AMENT_PREFIX_PATH -u ROS_DISTRO \
   /usr/local/bin/robot-docker-entrypoint bash -c \
   '[[ "${ROS_DISTRO:-}" == "jazzy" ]] && command -v ros2 >/dev/null 2>&1' \
   || fail "the simulation shell does not source the ROS 2 Jazzy environment"
 
+# 确认虚拟显示、窗口管理器和 VNC 正在运行，而不只检查安装包名。
 gz sim --help >/dev/null 2>&1 || fail "gz sim is unavailable"
 xdpyinfo -display "${DISPLAY:-:0}" >/dev/null 2>&1 || fail "Xvfb display is unavailable"
 pgrep -x openbox >/dev/null 2>&1 || fail "Openbox is not running"
